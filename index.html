@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RWBA Uniformity Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #111; color: #eee; font-family: monospace; padding: 2em; }
+    label, select, input, button { margin: 0.5em 0; display: block; }
+    canvas { max-width: 600px; margin-top: 2em; }
+    #status { margin-top: 1em; }
+    #fileInput { display: none; }
+    #fileLabel { display: none; }
+    #qrngStatus { margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>RWBA Uniformity Test</h1>
+  <label>Mode:
+    <select id="mode">
+      <option value="aim-high">Aim High (1)</option>
+      <option value="aim-low">Aim Low (0)</option>
+      <option value="no-aim" selected>No Aim (Two-Tailed)</option>
+    </select>
+  </label>
+  
+  <label>Entropy Source:
+    <select id="entropySource">
+      <option value="simulated">Simulated (Unbiased)</option>
+      <option value="uploaded">Upload Bitstream</option>
+      <option value="qrng">QRNG (ComScire)</option>
+    </select>
+  </label>
+  
+  <label>Trial Count:
+    <input type="number" id="trialCount" value="1000" min="100" max="100000" step="100" />
+  </label>
+  
+  <label id="fileLabel" for="fileInput">Upload Bitstream:
+    <input type="file" id="fileInput" />
+  </label>
+  
+  <button onclick="runTest()">Run Test</button>
+  <p id="status"></p>
+  <p id="qrngStatus"></p>
+  <canvas id="histogramChart"></canvas>
+
+  <script>
+    // Enable file upload option based on entropy source selection
+    document.getElementById("entropySource").addEventListener("change", function() {
+      if (this.value === "uploaded") {
+        document.getElementById("fileLabel").style.display = "block";
+      } else {
+        document.getElementById("fileLabel").style.display = "none";
+      }
+    });
+
+    // Function to check QRNG status
+    async function checkQRNGStatus() {
+      const response = await fetch('http://localhost:5000/qrng/status');
+      const data = await response.json();
+      if (data.available) {
+        document.getElementById('qrngStatus').textContent = `QRNG Device Connected: Device ID ${data.device_id}`;
+      } else {
+        document.getElementById('qrngStatus').textContent = `QRNG Not Detected. Using fallback.`;
+      }
+    }
+
+    // Initialize QRNG check on page load
+    window.onload = checkQRNGStatus;
+
+    async function runTest() {
+      const mode = document.getElementById('mode').value;
+      const entropySource = document.getElementById('entropySource').value;
+      const trialCount = parseInt(document.getElementById('trialCount').value);
+      const status = document.getElementById('status');
+      const fileInput = document.getElementById('fileInput');
+      const qrngStatus = document.getElementById('qrngStatus');
+
+      status.textContent = 'Running test...';
+
+      let formData = { mode, entropySource, trialCount };
+      if (entropySource === "uploaded" && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const fileData = await file.text();
+        formData.uploadedBits = fileData.replace(/\s/g, ''); // Clean up whitespace
+      }
+
+      const response = await fetch('http://localhost:5000/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const result = await response.json();
+      status.textContent = `Mean P: ${result.mean_p}, Chi²: ${result.chi_squared}, Result: ${result.test_passed ? 'PASS' : 'FAIL'}`;
+      renderChart(result.histogram);
+    }
+
+    function renderChart(data) {
+      const ctx = document.getElementById('histogramChart').getContext('2d');
+      if (window.histChart) window.histChart.destroy();
+      window.histChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['0.0–0.1', '0.1–0.2', '0.2–0.3', '0.3–0.4', '0.4–0.5', '0.5–0.6', '0.6–0.7', '0.7–0.8', '0.8–0.9', '0.9–1.0'],
+          datasets: [{
+            label: 'P-Value Count',
+            data: data,
+            backgroundColor: '#00b5ad'
+          }]
+        },
+        options: {
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+  </script>
+</body>
+</html>
