@@ -2,117 +2,860 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RWBA Uniformity Test</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { background: #111; color: #eee; font-family: monospace; padding: 2em; }
-    label, select, input, button { margin: 0.5em 0; display: block; }
-    canvas { max-width: 600px; margin-top: 2em; }
-    #status { margin-top: 1em; }
-    #fileInput { display: none; }
-    #fileLabel { display: none; }
-    #qrngStatus { margin-top: 1em; }
+    :root {
+      --primary: #00a5bd;
+      --primary-light: #00c2db;
+      --primary-dark: #008a9f;
+      --primary-trans: rgba(0, 165, 189, 0.1);
+      --bg-dark: #121418;
+      --bg-card: #1a1e24;
+      --bg-input: #15181e;
+      --text: #f5f5f7;
+      --text-secondary: #a0a0a5;
+      --text-tertiary: #686b71;
+      --border: #2a2e34;
+      --success: #4CAF50;
+      --success-trans: rgba(76, 175, 80, 0.1);
+      --warn: #FFC107;
+      --warn-trans: rgba(255, 193, 7, 0.1);
+      --error: #F44336;
+      --error-trans: rgba(244, 67, 54, 0.1);
+      --neutral: #607D8B;
+      --neutral-trans: rgba(96, 125, 139, 0.1);
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      padding: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    h1, h2, h3 {
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 1rem;
+    }
+    
+    h1 {
+      font-size: 1.75rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    h2 {
+      font-size: 1.25rem;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    h3 {
+      font-size: 1rem;
+      color: var(--text-secondary);
+    }
+    
+    .card {
+      background: var(--bg-card);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 1.5rem;
+    }
+    
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 0.35rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    
+    select, input, button {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      margin-bottom: 1.25rem;
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.95rem;
+      transition: all 0.2s ease;
+    }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23a0a0a5%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.7rem top 50%;
+      background-size: 0.65rem auto;
+      padding-right: 1.75rem;
+    }
+    
+    select:focus, input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary);
+    }
+    
+    button {
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-top: 0.25rem;
+    }
+    
+    button:hover {
+      background: var(--primary-light);
+    }
+    
+    button:active {
+      background: var(--primary-dark);
+    }
+    
+    button.secondary {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    
+    button.secondary:hover {
+      background: var(--bg-dark);
+    }
+    
+    .icon {
+      display: inline-block;
+      width: 1em;
+      height: 1em;
+      fill: currentColor;
+    }
+    
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    
+    .checkbox-container input[type="checkbox"] {
+      width: auto;
+      margin-right: 0.5rem;
+      margin-bottom: 0;
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 1rem;
+    }
+    
+    .badge-success {
+      background: var(--success-trans);
+      color: var(--success);
+    }
+    
+    .badge-warn {
+      background: var(--warn-trans);
+      color: var(--warn);
+    }
+    
+    .badge-error {
+      background: var(--error-trans);
+      color: var(--error);
+    }
+    
+    .badge-neutral {
+      background: var(--neutral-trans);
+      color: var(--neutral);
+    }
+    
+    .help-text {
+      color: var(--text-tertiary);
+      font-size: 0.85rem;
+      margin-bottom: 1.25rem;
+      line-height: 1.5;
+    }
+    
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-bottom: 1rem;
+    }
+    
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .result-item {
+      background: var(--bg-input);
+      border-radius: 6px;
+      padding: 1rem;
+      text-align: center;
+    }
+    
+    .result-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      color: var(--primary);
+    }
+    
+    .result-label {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.2;
+    }
+    
+    .trial-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+    }
+    
+    .trial-table th {
+      background: var(--bg-input);
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-align: left;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+    }
+    
+    .trial-table td {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--border);
+      border-top: none;
+    }
+    
+    .trial-table tr:nth-child(even) td {
+      background: rgba(42, 46, 52, 0.3);
+    }
+    
+    .entropy-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .stat-item {
+      background: var(--bg-input);
+      border-radius: 6px;
+      padding: 0.75rem;
+    }
+    
+    .stat-value {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.15rem;
+    }
+    
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+    }
+    
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      margin-left: 0.25rem;
+      cursor: help;
+    }
+    
+    .tooltip-icon {
+      color: var(--text-tertiary);
+      font-size: 0.85rem;
+    }
+    
+    .tooltip-text {
+      visibility: hidden;
+      width: 200px;
+      background-color: var(--bg-dark);
+      color: var(--text);
+      text-align: left;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -100px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-weight: normal;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--border);
+    }
+    
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    .collapsible {
+      margin-top: 1rem;
+    }
+    
+    .collapsible-header {
+      background: var(--bg-input);
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
+    }
+    
+    .collapsible-header:hover {
+      background: rgba(42, 46, 52, 0.8);
+    }
+    
+    .collapsible-content {
+      padding: 1rem;
+      display: none;
+      background: var(--bg-input);
+      border-bottom-left-radius: 6px;
+      border-bottom-right-radius: 6px;
+      margin-top: 1px;
+    }
+    
+    /* SVG Icons */
+    .icon-container {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+    }
   </style>
 </head>
 <body>
   <h1>RWBA Uniformity Test</h1>
-  <label>Mode:
-    <select id="mode">
-      <option value="aim-high">Aim High (1)</option>
-      <option value="aim-low">Aim Low (0)</option>
-      <option value="no-aim" selected>No Aim (Two-Tailed)</option>
-    </select>
-  </label>
   
-  <label>Entropy Source:
-    <select id="entropySource">
-      <option value="simulated">Simulated (Unbiased)</option>
-      <option value="uploaded">Upload Bitstream</option>
-      <option value="qrng">QRNG (ComScire)</option>
-    </select>
-  </label>
+  <div class="layout">
+    <div>
+      <div class="card">
+        <h2>
+          <svg class="icon" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
+          </svg>
+          Test Configuration
+        </h2>
+        
+        <div class="help-text">
+          Configure RWBA test parameters for entropy analysis.
+        </div>
+        
+        <label for="mode">Test Mode 
+          <span class="tooltip">
+            <span class="tooltip-icon">ⓘ</span>
+            <span class="tooltip-text">
+              No Aim: Two-tailed test for general bias detection<br>
+              Aim High: Tests for bias toward 1s<br>
+              Aim Low: Tests for bias toward 0s
+            </span>
+          </span>
+        </label>
+        <select id="mode">
+          <option value="no-aim" selected>No Aim (Two-Tailed)</option>
+          <option value="aim-high">Aim High (1s)</option>
+          <option value="aim-low">Aim Low (0s)</option>
+        </select>
+        
+        <label for="entropySource">Entropy Source</label>
+        <select id="entropySource">
+          <option value="simulated">Simulated</option>
+          <option value="uploaded">Uploaded Bitstream</option>
+          <option value="qrng">QRNG (ComScire)</option>
+        </select>
+        
+        <div id="simulatedControls">
+          <label for="biasDelta">Bias Delta 
+            <span class="tooltip">
+              <span class="tooltip-icon">ⓘ</span>
+              <span class="tooltip-text">
+                Adjusts the bias in simulated entropy source.
+                0.0 = unbiased, positive values bias toward 1s,
+                negative values bias toward 0s.
+              </span>
+            </span>
+          </label>
+          <input type="number" id="biasDelta" value="0.0" step="0.001" min="-0.5" max="0.5" />
+        </div>
+        
+        <label for="trialCount">Number of Trials</label>
+        <input type="number" id="trialCount" value="1000" min="100" max="10000" step="100" />
+        
+        <div id="fileInputControls" style="display: none;">
+          <button id="fileSelectButton" class="secondary">Select Bitstream File</button>
+          <input type="file" id="fileInput" style="display: none;" />
+          <div id="fileStatus" class="help-text" style="display: none;"></div>
+        </div>
+        
+        <div class="checkbox-container">
+          <input type="checkbox" id="debugModeCheckbox" />
+          <label for="debugModeCheckbox" style="margin-bottom: 0;">Enable Debug Mode</label>
+        </div>
+        
+        <button id="runTestButton" onclick="runTest()">
+          Run Uniformity Test
+        </button>
+        
+        <button id="downloadLogsButton" style="display: none;" class="secondary">
+          Download Session Logs
+        </button>
+      </div>
+    </div>
+    
+    <div>
+      <div class="card">
+        <h2>
+          <svg class="icon" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M16,11.78L20.24,4.45L21.97,5.45L16.74,14.5L10.23,10.75L5.46,19H22V21H2V3H4V17.54L9.5,8L16,11.78Z" />
+          </svg>
+          Test Results
+          <span id="testStatus" class="status-badge badge-neutral" style="display: none; margin-left: auto;">Ready</span>
+        </h2>
+        
+        <div id="noResultsMessage" class="help-text">
+          Run a test to see results. The histogram will show the p-value distribution.
+        </div>
+        
+        <div id="resultsContent" style="display: none;">
+          <div class="results-grid">
+            <div class="result-item">
+              <div class="result-value" id="meanP">-</div>
+              <div class="result-label">Mean P-Value</div>
+            </div>
+            <div class="result-item">
+              <div class="result-value" id="chiSquared">-</div>
+              <div class="result-label">Chi² Value</div>
+            </div>
+            <div class="result-item">
+              <div class="result-value" id="outcome">-</div>
+              <div class="result-label">Outcome</div>
+            </div>
+            <div class="result-item">
+              <div class="result-value" id="hitRate">-</div>
+              <div class="result-label">Hit Rate (%)</div>
+            </div>
+          </div>
+          
+          <div class="chart-container">
+            <canvas id="histogramChart"></canvas>
+          </div>
+          
+          <div class="help-text">
+            <strong>Uniform Distribution:</strong> Indicates no detectable bias in the entropy source (null hypothesis holds).<br>
+            <strong>Non-Uniform Distribution:</strong> Suggests RWBA successfully amplified an underlying bias in the entropy.
+          </div>
+        </div>
+      </div>
+      
+      <div class="card" id="entropyCard">
+        <h2>
+          <svg class="icon" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M2,2V4H7V8H2V10H7C8.1,10 9,9.1 9,8V4C9,2.9 8.1,2 7,2H2M22,15C22,13.9 21.1,13 20,13H19V7C19,5.9 18.1,5 17,5H13V7H17V13H12V17H17V19H12V21H17C18.1,21 19,20.1 19,19V17H20C21.1,17 22,16.1 22,15" />
+          </svg>
+          Entropy Source Analysis
+        </h2>
+        
+        <div id="entropyPlaceholder" class="help-text">
+          Run a test to analyze the statistical properties of the entropy source.
+        </div>
+        
+        <div id="entropyStats" class="entropy-stats" style="display: none;">
+          <div class="stat-item">
+            <div class="stat-value" id="entropyLength">-</div>
+            <div class="stat-label">Length (bits)</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="entropyMean">-</div>
+            <div class="stat-label">Mean</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="entropyBias">-</div>
+            <div class="stat-label">Bias</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="entropyCorr">-</div>
+            <div class="stat-label">Correlation</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card" id="debugTrials" style="display: none;">
+        <h2>
+          <svg class="icon" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M12,4.5C17,4.5 21.27,7.61 23,12C21.27,16.39 17,19.5 12,19.5C7,19.5 2.73,16.39 1,12C2.73,7.61 7,4.5 12,4.5M3.18,12C4.83,15.36 8.24,17.5 12,17.5C15.76,17.5 19.17,15.36 20.82,12C19.17,8.64 15.76,6.5 12,6.5C8.24,6.5 4.83,8.64 3.18,12Z" />
+          </svg>
+          Trial Debug Information
+        </h2>
+        
+        <div class="collapsible">
+          <div class="collapsible-header" onclick="toggleDebugView()">
+            <span>View Individual Trial Data</span>
+            <span id="toggleIcon">▼</span>
+          </div>
+          <div class="collapsible-content" id="trialTableContainer">
+            <div style="max-height: 300px; overflow-y: auto;">
+              <table class="trial-table">
+                <thead>
+                  <tr>
+                    <th>Trial #</th>
+                    <th>P-Value</th>
+                    <th>NWTV</th>
+                  </tr>
+                </thead>
+                <tbody id="trialsTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
   
-  <label>Trial Count:
-    <input type="number" id="trialCount" value="1000" min="100" max="100000" step="100" />
-  </label>
-  
-  <label id="fileLabel" for="fileInput">Upload Bitstream:
-    <input type="file" id="fileInput" />
-  </label>
-  
-  <button onclick="runTest()">Run Test</button>
-  <p id="status"></p>
-  <p id="qrngStatus"></p>
-  <canvas id="histogramChart"></canvas>
-
   <script>
-    // Enable file upload option based on entropy source selection
-    document.getElementById("entropySource").addEventListener("change", function() {
-      if (this.value === "uploaded") {
-        document.getElementById("fileLabel").style.display = "block";
+    // Initialize UI
+    document.getElementById('entropySource').addEventListener('change', function() {
+      const source = this.value;
+      document.getElementById('simulatedControls').style.display = 
+        source === 'simulated' ? 'block' : 'none';
+      document.getElementById('fileInputControls').style.display = 
+        source === 'uploaded' ? 'block' : 'none';
+    });
+    
+    // File input handling
+    document.getElementById('fileSelectButton').addEventListener('click', function() {
+      document.getElementById('fileInput').click();
+    });
+    
+    document.getElementById('fileInput').addEventListener('change', function() {
+      const fileStatus = document.getElementById('fileStatus');
+      if (this.files.length > 0) {
+        const file = this.files[0];
+        fileStatus.textContent = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+        fileStatus.style.display = 'block';
       } else {
-        document.getElementById("fileLabel").style.display = "none";
+        fileStatus.style.display = 'none';
       }
     });
-
-    // Function to check QRNG status
-    async function checkQRNGStatus() {
-      const response = await fetch('http://localhost:5000/qrng/status');
-      const data = await response.json();
-      if (data.available) {
-        document.getElementById('qrngStatus').textContent = `QRNG Device Connected: Device ID ${data.device_id}`;
+    
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' bytes';
+      else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      else return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+    
+    // Toggle debug view
+    function toggleDebugView() {
+      const content = document.getElementById('trialTableContainer');
+      const icon = document.getElementById('toggleIcon');
+      
+      if (content.style.display === 'block') {
+        content.style.display = 'none';
+        icon.textContent = '▼';
       } else {
-        document.getElementById('qrngStatus').textContent = `QRNG Not Detected. Using fallback.`;
+        content.style.display = 'block';
+        icon.textContent = '▲';
       }
     }
-
-    // Initialize QRNG check on page load
-    window.onload = checkQRNGStatus;
-
+    
+    // Run the RWBA test
     async function runTest() {
+      // Update UI state
+      const runButton = document.getElementById('runTestButton');
+      const testStatus = document.getElementById('testStatus');
+      
+      runButton.disabled = true;
+      testStatus.textContent = 'Running...';
+      testStatus.className = 'status-badge badge-neutral';
+      testStatus.style.display = 'inline-flex';
+      
+      // Get form values
       const mode = document.getElementById('mode').value;
       const entropySource = document.getElementById('entropySource').value;
       const trialCount = parseInt(document.getElementById('trialCount').value);
-      const status = document.getElementById('status');
+      const biasDelta = parseFloat(document.getElementById('biasDelta').value) || 0.0;
+      const debugMode = document.getElementById('debugModeCheckbox').checked;
+      
+      // Prepare request body
+      const body = { mode, entropySource, trialCount, biasDelta };
+      
+      // Handle file upload if selected
       const fileInput = document.getElementById('fileInput');
-      const qrngStatus = document.getElementById('qrngStatus');
-
-      status.textContent = 'Running test...';
-
-      let formData = { mode, entropySource, trialCount };
       if (entropySource === "uploaded" && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const fileData = await file.text();
-        formData.uploadedBits = fileData.replace(/\s/g, ''); // Clean up whitespace
+        try {
+          const file = fileInput.files[0];
+          const fileText = await file.text();
+          body.uploadedBits = fileText.replace(/\s/g, '');
+        } catch (error) {
+          updateStatus('error', `File reading error: ${error.message}`);
+          runButton.disabled = false;
+          return;
+        }
       }
-
-      const response = await fetch('http://localhost:5000/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
-      const result = await response.json();
-      status.textContent = `Mean P: ${result.mean_p}, Chi²: ${result.chi_squared}, Result: ${result.test_passed ? 'PASS' : 'FAIL'}`;
-      renderChart(result.histogram);
+      
+      try {
+        // Make API request
+        const res = await fetch('http://localhost:5000/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Server responded with status ${res.status}`);
+        }
+        
+        const result = await res.json();
+        
+        if (result.error) {
+          updateStatus('error', result.error);
+          return;
+        }
+        
+        // Update results display
+        document.getElementById('noResultsMessage').style.display = 'none';
+        document.getElementById('resultsContent').style.display = 'block';
+        
+        // Update metrics
+        document.getElementById('meanP').textContent = result.mean_p.toFixed(4);
+        document.getElementById('chiSquared').textContent = result.chi_squared.toFixed(2);
+        document.getElementById('outcome').textContent = result.outcome;
+        document.getElementById('hitRate').textContent = (result.hit_rate * 100).toFixed(1);
+        
+        // Update entropy stats
+        document.getElementById('entropyPlaceholder').style.display = 'none';
+        document.getElementById('entropyStats').style.display = 'grid';
+        
+        const stats = result.entropy_stats;
+        document.getElementById('entropyLength').textContent = stats.length.toLocaleString();
+        document.getElementById('entropyMean').textContent = stats.mean.toFixed(4);
+        document.getElementById('entropyBias').textContent = stats.bias.toExponential(2);
+        document.getElementById('entropyCorr').textContent = stats.correlation.toExponential(2);
+        
+        // Render chart
+        renderChart(result.histogram);
+        
+        // Show debug data if requested
+        if (debugMode && result.trials) {
+          showTrialData(result.trials);
+          document.getElementById('debugTrials').style.display = 'block';
+        } else {
+          document.getElementById('debugTrials').style.display = 'none';
+        }
+        
+        // Enable log download if session ID available
+        const dlBtn = document.getElementById("downloadLogsButton");
+        if (result.session_id) {
+          dlBtn.style.display = "block";
+          dlBtn.onclick = () => downloadLogs(result.session_id);
+        }
+        
+        // Update status based on outcome
+        updateStatus(
+          result.outcome === 'Uniform' ? 'success' : 'warn',
+          result.outcome
+        );
+        
+      } catch (error) {
+        updateStatus('error', `Error: ${error.message}`);
+      } finally {
+        runButton.disabled = false;
+      }
     }
-
+    
+    // Update test status display
+    function updateStatus(type, message) {
+      const statusEl = document.getElementById('testStatus');
+      statusEl.textContent = message;
+      statusEl.className = 'status-badge';
+      
+      switch (type) {
+        case 'success':
+          statusEl.classList.add('badge-success');
+          break;
+        case 'warn':
+          statusEl.classList.add('badge-warn');
+          break;
+        case 'error':
+          statusEl.classList.add('badge-error');
+          break;
+        default:
+          statusEl.classList.add('badge-neutral');
+      }
+      
+      statusEl.style.display = 'inline-flex';
+    }
+    
+    // Download session logs
+    async function downloadLogs(sessionId) {
+      try {
+        const res = await fetch(`http://localhost:5000/export/${sessionId}`);
+        if (!res.ok) {
+          throw new Error(`Server responded with status ${res.status}`);
+        }
+        
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rwba_session_${sessionId}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        alert(`Failed to download logs: ${error.message}`);
+      }
+    }
+    
+    // Display individual trial data in debug mode
+    function showTrialData(trials) {
+      const table = document.getElementById("trialsTable");
+      table.innerHTML = '';
+      
+      trials.forEach((t, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${t.trial_index}</td>
+          <td>${t.p_value.toFixed(6)}</td>
+          <td>${t.nwtv.toFixed(6)}</td>
+        `;
+        table.appendChild(row);
+      });
+    }
+    
+    // Render histogram chart
     function renderChart(data) {
       const ctx = document.getElementById('histogramChart').getContext('2d');
-      if (window.histChart) window.histChart.destroy();
+      
+      // Destroy existing chart if it exists
+      if (window.histChart) {
+        window.histChart.destroy();
+      }
+      
+      // Create new chart
       window.histChart = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: ['0.0–0.1', '0.1–0.2', '0.2–0.3', '0.3–0.4', '0.4–0.5', '0.5–0.6', '0.6–0.7', '0.7–0.8', '0.8–0.9', '0.9–1.0'],
           datasets: [{
-            label: 'P-Value Count',
+            label: 'P-Value Distribution',
             data: data,
-            backgroundColor: '#00b5ad'
+            backgroundColor: 'rgba(0, 165, 189, 0.7)',
+            borderColor: 'rgba(0, 165, 189, 1)',
+            borderWidth: 1
           }]
         },
         options: {
-          scales: { y: { beginAtZero: true } }
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { 
+              display: false 
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              titleColor: 'rgba(255, 255, 255, 0.9)',
+              bodyColor: 'rgba(255, 255, 255, 0.9)',
+              titleFont: {
+                size: 14
+              },
+              bodyFont: {
+                size: 13
+              },
+              padding: 10,
+              cornerRadius: 4
+            }
+          },
+          scales: {
+            y: { 
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.05)'
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.7)'
+              },
+              title: {
+                display: true,
+                text: 'Frequency',
+                color: 'rgba(255, 255, 255, 0.7)',
+                font: {
+                  size: 12
+                }
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: 'rgba(255, 255, 255, 0.7)'
+              },
+              title: {
+                display: true,
+                text: 'P-Value Range',
+                color: 'rgba(255, 255, 255, 0.7)',
+                font: {
+                  size: 12
+                }
+              }
+            }
+          }
         }
       });
     }

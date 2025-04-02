@@ -2,7 +2,8 @@ import os
 import math
 import random
 import statistics
-import base64
+from uuid import uuid4
+from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -15,17 +16,14 @@ except ImportError:
 app = Flask(__name__)
 CORS(app)
 
-# === Utilities ===
+SESSION_LOG = {}
+
+def simulate_entropy(length, delta=0.0):
+    threshold = 0.5 + delta
+    return [1 if random.random() > threshold else 0 for _ in range(length)]
+
 def bitstring_to_floats(bitstring):
     return [int(b) for b in bitstring if b in ('0', '1')]
-
-def load_entropy_file(filepath):
-    with open(filepath, 'rb') as f:
-        bits = ''.join(f"{byte:08b}" for byte in f.read())
-    return bitstring_to_floats(bits)
-
-def simulate_entropy(length):
-    return [random.choice([0, 1]) for _ in range(length)]
 
 def fetch_qrng_bits(bit_count):
     qng = win32com.client.Dispatch("QWQNG.QNG")
@@ -33,6 +31,11 @@ def fetch_qrng_bits(bit_count):
     raw_bytes = qng.RandBytes(byte_count)
     bits = ''.join(f"{byte:08b}" for byte in raw_bytes)[:bit_count]
     return [int(b) for b in bits]
+
+def load_entropy_file(filepath):
+    with open(filepath, 'rb') as f:
+        bits = ''.join(f"{byte:08b}" for byte in f.read())
+    return bitstring_to_floats(bits)
 
 def get_entropy_stats(bits):
     n = len(bits)
@@ -48,7 +51,6 @@ def get_entropy_stats(bits):
         'correlation': round(correlation, 5)
     }
 
-# === RWBA Core Logic ===
 def bounded_random_walk(bits, n=31):
     pos = 0
     steps = 0
@@ -74,10 +76,9 @@ def step_count_to_sv(step_count, n):
     return p, sv
 
 def process_trial(bits, mode, n=31):
-    trial_bits = bits[:21 * (n ** 2)]
-    if len(trial_bits) < 21 * (n ** 2):
+    if len(bits) < 21 * n**2:
         return None
-    subtrials = [trial_bits[i * (n ** 2):(i + 1) * (n ** 2)] for i in range(21)]
+    subtrials = [bits[i * n**2:(i + 1) * n**2] for i in range(21)]
     weighted = []
     sv_total = 0
     for st in subtrials:
@@ -100,60 +101,102 @@ def process_trial(bits, mode, n=31):
         pass
     else:
         p_value = 2 * min(p_value, 1.0 - p_value)
-    return round(p_value, 6)
+    return round(p_value, 6), round(nwtv, 6)
 
-# === Flask API ===
+def hash_session(meta, bits):
+    import hashlib
+    return hashlib.sha256((meta + ''.join(map(str, bits[:500]))).encode()).hexdigest()
+
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    data = request.json
-    mode = data.get("mode", "no-aim")
-    entropy_mode = data.get("entropySource", "simulated")
-    trial_count = int(data.get("trialCount", 1000))
-    entropy_path = data.get("entropyPath", None)
-    uploaded_bits = data.get("uploadedBits", None)
+    try:
+        data = request.json
+        mode = data.get("mode", "no-aim")
+        entropy_mode = data.get("entropySource", "simulated")
+        trial_count = int(data.get("trialCount", 1000))
+        bias_delta = float(data.get("biasDelta", 0.0))
+        uploaded_bits = data.get("uploadedBits", None)
+    except Exception:
+        return jsonify({"error": "Malformed request: missing or invalid fields."}), 400
 
-    entropy = []
+    bits_per_trial = 21 * (31 ** 2)
+    total_bits_needed = trial_count * bits_per_trial
+
     try:
         if entropy_mode == 'simulated':
-            entropy = simulate_entropy(trial_count * 21 * (31**2))
-        elif entropy_mode == 'file' and entropy_path:
-            entropy = load_entropy_file(entropy_path)
+            entropy = simulate_entropy(total_bits_needed, delta=bias_delta)
         elif entropy_mode == 'qrng' and QRNG_AVAILABLE:
-            entropy = fetch_qrng_bits(trial_count * 21 * (31**2))
+            entropy = fetch_qrng_bits(total_bits_needed)
         elif entropy_mode == 'uploaded' and uploaded_bits:
             entropy = bitstring_to_floats(uploaded_bits)
         else:
-            return jsonify({"error": "Invalid entropy source or data."}), 400
+            return jsonify({"error": "Invalid or missing entropy source."}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+    if len(entropy) < total_bits_needed:
+        return jsonify({"error": "Not enough entropy bits provided."}), 400
+
     stats = get_entropy_stats(entropy)
     p_values = []
+    nwtvs = []
     histogram = [0] * 10
+    hits = 0
+    trials_data = []
+
     for i in range(trial_count):
-        bits = entropy[i * 21 * (31**2):(i + 1) * 21 * (31**2)]
-        if len(bits) < 21 * (31**2):
-            break
-        p = process_trial(bits, mode)
-        if p is not None:
-            p_values.append(p)
-            bin_index = min(int(p * 10), 9)
-            histogram[bin_index] += 1
+        trial_bits = entropy[i * bits_per_trial:(i + 1) * bits_per_trial]
+        result = process_trial(trial_bits, mode)
+        if result is None:
+            continue
+        p, n = result
+        p_values.append(p)
+        nwtvs.append(n)
+        histogram[min(int(p * 10), 9)] += 1
+        if p < 0.5:
+            hits += 1
+        trials_data.append({
+            "trial_index": i,
+            "p_value": p,
+            "nwtv": n
+        })
 
-    mean_p = round(sum(p_values) / len(p_values), 5)
-    expected = len(p_values) / 10
-    chi_squared = sum(((count - expected)**2) / expected for count in histogram)
-    test_passed = chi_squared < 16.92
+    mean_p = round(sum(p_values) / len(p_values), 5) if p_values else 0.0
+    expected = len(p_values) / 10 if p_values else 1
+    chi_squared = round(sum(((count - expected)**2) / expected for count in histogram), 4)
+    outcome = "Uniform" if chi_squared < 16.92 else "Bias Detected"
+    hit_rate = round(hits / len(p_values), 4) if p_values else 0.0
 
-    return jsonify({
-        "mean_p": mean_p,
-        "chi_squared": round(chi_squared, 4),
-        "test_passed": test_passed,
-        "histogram": histogram,
-        "p_values": p_values,
+    session_id = str(uuid4())
+    timestamp = datetime.now().isoformat()
+    session_hash = hash_session(f"{mode}-{entropy_mode}-{bias_delta}-{trial_count}-{timestamp}", entropy)
+
+    SESSION_LOG[session_id] = {
+        "session_id": session_id,
+        "timestamp": timestamp,
+        "entropy_source": entropy_mode,
+        "bias_delta": bias_delta,
+        "mode": mode,
+        "trial_count": trial_count,
         "entropy_stats": stats,
-        "qrng_available": QRNG_AVAILABLE
-    })
+        "p_values": p_values,
+        "nwtvs": nwtvs,
+        "histogram": histogram,
+        "mean_p": mean_p,
+        "chi_squared": chi_squared,
+        "outcome": outcome,
+        "hit_rate": hit_rate,
+        "session_hash": session_hash,
+        "trials": trials_data  # New: detailed trial-level results
+    }
+
+    return jsonify(SESSION_LOG[session_id])
+
+@app.route("/export/<session_id>", methods=["GET"])
+def export_session(session_id):
+    if session_id not in SESSION_LOG:
+        return jsonify({"error": "Session not found"}), 404
+    return jsonify(SESSION_LOG[session_id])
 
 @app.route("/qrng/status", methods=["GET"])
 def qrng_status():
@@ -172,9 +215,18 @@ def qrng_status():
     except Exception as e:
         return jsonify({"error": str(e), "available": False}), 500
 
+@app.route("/test_entropy", methods=["POST"])
+def test_entropy():
+    data = request.json
+    bit_len = int(data.get("bitLength", 1000000))
+    delta = float(data.get("biasDelta", 0.0))
+    bits = simulate_entropy(bit_len, delta)
+    stats = get_entropy_stats(bits)
+    return jsonify({"bitLength": bit_len, "biasDelta": delta, "entropy_stats": stats})
+
 @app.route("/status", methods=["GET"])
 def status():
-    return jsonify({"status": "RWBA Server running", "qrng_available": QRNG_AVAILABLE})
+    return jsonify({"status": "RWBA backend running", "qrng_available": QRNG_AVAILABLE})
 
 if __name__ == "__main__":
     app.run(debug=True)
