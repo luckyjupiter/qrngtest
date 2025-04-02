@@ -1,17 +1,53 @@
 import os
 import math
 import random
+import ctypes
+import platform
 import statistics
 from uuid import uuid4
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-try:
-    import win32com.client
-    QRNG_AVAILABLE = True
-except ImportError:
-    QRNG_AVAILABLE = False
+# MeterFeeder Library Loading
+def load_library():
+    # Determine the library path based on the platform
+    if platform.system() == "Linux":
+        lib_path = os.getcwd() + '/libmeterfeeder.so'
+    elif platform.system() == "Darwin":
+        lib_path = os.getcwd() + '/libmeterfeeder.dylib'
+    elif platform.system() == "Windows":
+        lib_path = os.getcwd() + '/meterfeeder.dll'
+    else:
+        raise OSError("Unsupported platform")
+
+    # Load the library
+    try:
+        meterfeeder_lib = ctypes.cdll.LoadLibrary(lib_path)
+        
+        # Set argument and return types for MF_Initialize
+        meterfeeder_lib.MF_Initialize.argtypes = [ctypes.c_char_p]
+        meterfeeder_lib.MF_Initialize.restype = ctypes.c_int
+        
+        # Set argument and return types for MF_GetNumberGenerators
+        meterfeeder_lib.MF_GetNumberGenerators.restype = ctypes.c_int
+        
+        # Set argument and return types for MF_GetBytes
+        meterfeeder_lib.MF_GetBytes.argtypes = [
+            ctypes.c_int, 
+            ctypes.POINTER(ctypes.c_ubyte), 
+            ctypes.c_char_p, 
+            ctypes.c_char_p
+        ]
+        
+        return meterfeeder_lib
+    except Exception as e:
+        print(f"Error loading MeterFeeder library: {e}")
+        return None
+
+# Try to load the library during import
+METERFEEDER_LIB = load_library()
+QRNG_AVAILABLE = METERFEEDER_LIB is not None
 
 app = Flask(__name__)
 CORS(app)
@@ -26,10 +62,36 @@ def bitstring_to_floats(bitstring):
     return [int(b) for b in bitstring if b in ('0', '1')]
 
 def fetch_qrng_bits(bit_count):
-    qng = win32com.client.Dispatch("QWQNG.QNG")
+    if not QRNG_AVAILABLE or not METERFEEDER_LIB:
+        raise RuntimeError("MeterFeeder library not available")
+    
+    # Determine byte count needed to get desired bit count
     byte_count = (bit_count + 7) // 8
-    raw_bytes = qng.RandBytes(byte_count)
-    bits = ''.join(f"{byte:08b}" for byte in raw_bytes)[:bit_count]
+    
+    # Create buffer for bytes
+    ubuffer = (ctypes.c_ubyte * byte_count)()
+    
+    # Create error reason buffer
+    error_reason = ctypes.create_string_buffer(256)
+    
+    # Initialize the library if not already done
+    error_reason_str = ctypes.c_char_p(error_reason)
+    METERFEEDER_LIB.MF_Initialize(error_reason_str)
+    
+    # Get number of generators
+    num_generators = METERFEEDER_LIB.MF_GetNumberGenerators()
+    if num_generators == 0:
+        raise RuntimeError("No QRNG generators found")
+    
+    # Get first generator's serial number
+    generator_serial = ctypes.create_string_buffer(58)
+    generator_serial_ptr = ctypes.cast(generator_serial, ctypes.c_char_p)
+    
+    # Retrieve bytes
+    METERFEEDER_LIB.MF_GetBytes(byte_count, ubuffer, generator_serial_ptr, error_reason_str)
+    
+    # Convert bytes to bit string
+    bits = ''.join(f"{byte:08b}" for byte in ubuffer)[:bit_count]
     return [int(b) for b in bits]
 
 def load_entropy_file(filepath):
@@ -203,14 +265,20 @@ def qrng_status():
     if not QRNG_AVAILABLE:
         return jsonify({"available": False})
     try:
-        qng = win32com.client.Dispatch("QWQNG.QNG")
-        runtime = qng.RuntimeInfo
+        # Get number of generators
+        num_generators = METERFEEDER_LIB.MF_GetNumberGenerators()
+        
+        # Create buffers for generator info
+        error_reason = ctypes.create_string_buffer(256)
+        generator_serial = ctypes.create_string_buffer(58)
+        generator_serial_ptr = ctypes.cast(generator_serial, ctypes.c_char_p)
+        
+        # Perform basic device check
         return jsonify({
             "available": True,
-            "device_id": qng.DeviceId,
-            "runtime_ok": runtime[0] == 0,
-            "bias": runtime[3],
-            "entropy": runtime[1]
+            "number_of_generators": num_generators,
+            "runtime_ok": num_generators > 0,
+            "library_initialized": True
         })
     except Exception as e:
         return jsonify({"error": str(e), "available": False}), 500
