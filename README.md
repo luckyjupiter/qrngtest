@@ -14,6 +14,17 @@ The RWBA algorithm amplifies small biases. So if unbiased data passes through cl
 
 ---
 
+## Running
+
+Requires Python and pip v3. Tested with 3.12.
+
+```bash
+pip3 install -r requirements.txt
+python3 app.py
+```
+
+Open in your browser to http://127.0.0.1:5000/status. 
+
 ## 🧠 Core Concept
 
 Each trial performs a **1D bounded random walk**, then computes a **Surprisal Value (SV)** based on how surprising the result was. These are combined into a **Normalized Weighted Trial Value (NWTV)** from which a p-value is derived.
@@ -47,6 +58,6 @@ Each mode follows slightly different logic — it’s important to test them sep
 - ✅ Real-time Histogram Visualization
 - ✅ Modular Backend (entropy, trials, scoring)
 
-> ❗ **Note:** Live QRNG integration requires Windows and the ComScire MED100Kx8 device with ActiveX drivers installed.
+> ❗ **Note:** Live QRNG integration requires a Psigenics/ComScire MED100Kx8 device connected.
 
 ---
